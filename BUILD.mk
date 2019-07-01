@@ -27,7 +27,7 @@ SDK_ROOT := $(call path_relative_to,$(CURDIR),$(CURR_SDK_ROOT))
 ##############################################################################
 # ARM_APP
 ##############################################################################
-ARM_APP = apex_basic
+ARM_APP = apex_rgb
 
 ARM_APP_SRCS =                                                               \
     main.cpp                                                                 \
