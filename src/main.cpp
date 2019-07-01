@@ -45,6 +45,20 @@ REGISTER_PROCESS_TYPE(ADD_PI, apu_add_apu_process_desc)
 #include <common_helpers.h>
 #include <string>
 
+/// LLL DISPLAY ---(
+#if !defined(APEX2_EMULATE) && !defined(__INTEGRITY__)
+#ifdef __STANDALONE__
+#include "frame_output_dcu.h"
+#else // #ifdef __STANDALONE__
+#include "frame_output_v234fb.h"
+#endif // else from #ifdef __STANDALONE__
+
+#define CHNL_CNT io::IO_DATA_CH3
+#endif
+
+#include <umat.hpp>
+/// LLL DISPLAY ---)
+
 
 #if 1 //def GRAPH_CONNECT_DEBUG
 // BY Port ID
@@ -134,6 +148,14 @@ int main(int argc, char** argv)
   lRetVal |= addProcess.Start();
   lRetVal |= addProcess.Wait();
   printf("Processing done.\n");
+
+  /// LLL DISPLAY ---(
+  io::FrameOutputV234Fb output(2048, 1024, io::IO_DATA_DEPTH_08, CHNL_CNT);
+  vsdk::UMat output_umat = vsdk::UMat(2048, 1024, VSDK_CV_8UC3);
+  // Put it on screen
+  output.PutFrame(lOutput0);
+  /// LLL DISPLAY ---)
+
 
   if(lRetVal != 0)
   {

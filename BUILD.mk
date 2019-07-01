@@ -32,13 +32,20 @@ ARM_APP = apex_rgb
 ARM_APP_SRCS =                                                               \
     main.cpp                                                                 \
 
+#LLL DISPLAY: include sumat, oal, frame_io, dcu
 ARM_INCS +=                                                                  \
     -I$(SDK_ROOT)/libs/apex/icp/include                                      \
     -I$(SDK_ROOT)/libs/apex/drivers/user/include                             \
     -I$(SDK_ROOT)/include                                                    \
+    -I$(SDK_ROOT)/libs/utils/sumat/include                                   \
+    -I$(SDK_ROOT)/libs/utils/oal/user/include                                \
+    -I$(SDK_ROOT)/libs/utils/oal/kernel/include                              \
+    -I$(SDK_ROOT)/libs/io/frame_io/include                                   \
+    -I$(SDK_ROOT)/libs/io/dcu/include                                        \
     -I../graphs                                                              \
     -I../graphs/build-apu-$(APU_COMP)-sa-d
 
+#LLL DISPLAY: include umat, frame_io, dcu
 ARM_APP_LIBS =                                                               \
     $(SDK_ROOT)/libs/apex/acf/$(ODIR)/libacf.a                               \
     $(SDK_ROOT)/libs/apex/icp/$(ODIR)/libicp.a                               \
@@ -48,8 +55,17 @@ ARM_APP_LIBS =                                                               \
     $(SDK_ROOT)/libs/apex/drivers/user/$(ODIR)/libapexdrv.a                  \
     $(SDK_ROOT)/libs/utils/oal/user/$(ODIR)/liboal.a                         \
     $(SDK_ROOT)/libs/utils/communications/$(ODIR)/lib_communications.a       \
+    $(SDK_ROOT)/libs/utils/umat/$(ODIR)/libumat.a                            \
+    $(SDK_ROOT)/libs/io/frame_io/$(ODIR)/libframe_io.a                       \
+    $(SDK_ROOT)/libs/io/dcu/$(ODIR)/libdcu.a                                 \
     $(SDK_ROOT)/libs/utils/log/$(ODIR)/liblog.a
 
+# LLL DISPLAY: Build changes for displaying. libumat needs opencv2
+ARM_LDOPTS +=                                                                \
+    -lopencv_imgcodecs                                                       \
+    -lopencv_imgproc                                                         \
+    -lopencv_core 
+ 
 ##############################################################################
 # STANDALONE SPECIFIC INCLUDES
 ##############################################################################	
