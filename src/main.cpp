@@ -29,6 +29,10 @@
 
 // Utility function for SUMat/SMat
 #include <umat_helper.h>
+// Utility functions
+#include <common_helpers.h>
+#include <string>
+
 // Name definitions used for the ACF graph, access to the port names
 #include <apu_add_graph_names.h>
 
@@ -42,8 +46,6 @@ REGISTER_PROCESS_TYPE(ADD_PI, apu_add_apu_process_desc)
 #include "apex.h"
 #include str_header(ADD_PI, hpp)
 #endif
-#include <common_helpers.h>
-#include <string>
 
 /// LLL DISPLAY ---(
 #if !defined(APEX2_EMULATE) && !defined(__INTEGRITY__)
@@ -54,6 +56,7 @@ REGISTER_PROCESS_TYPE(ADD_PI, apu_add_apu_process_desc)
 #endif // else from #ifdef __STANDALONE__
 
 #define CHNL_CNT io::IO_DATA_CH3
+#define CHNL_CNT_GRAY io::IO_DATA_CH1 
 #endif
 
 #include <umat.hpp>
@@ -69,100 +72,75 @@ ACF_DataDesc TranslateVsdkUMatToAcfDataDesc(const vsdk::SUMat& lUmat);
 /****************************************************************************
 * Constant declarations
 ****************************************************************************/
-const int cImageWidth  = 2048;
-const int cImageHeight = 1024;
+// Supported resolutions and pixel formats for Frame_output:
+// The FrameOutputV234 object always configures the FB in a double buffer
+// scheme. It was tested
+// to work well up to 1280x720, 24bpp. Attempts to use higher resolution (e.g.
+// 1920x1080, 24bpp)
+// might fail because of problems with allocation of contiguous buffers above
+// certain size in Linux Kernel.(Reference:Frame_output_User_Guide.pdf.Page
+// number:07)
+const int cImageWidth  = 1024;
+const int cImageHeight = 720;
 
 /****************************************************************************
 * Main function
 * Note: This sample code highlights the steps for using a functionality.
 *       To make the code more readable, error management has been simplified.
 ****************************************************************************/
+#define INPUT_ROOT "./" //"data/common/"
 int main(int argc, char** argv)
 {
   // 0 success, not 0 error
   int lRetVal = 0;
-  printf("Starting APEX BASIC Program.\n");
-  std::string helpMsg = std::string("Adds two random matrices on APEX in a very basic way.\n\tUsage: ") +
-                        COMMON_ExtractProgramName(argv[0]);
-  int idxHelp = COMMON_HelpMessage(argc, argv, helpMsg.c_str());
-  if(idxHelp > 0)
-  {
-    //found help in application arguments thus exiting application
-    return -1;
-  }
-
-  // This is needed only for the Target Compiler
-  // HW and resources init
-  APEX_Init();
+  printf("Starting display using opencv and FB.\n");
 
   int lSrcWidth  = cImageWidth;
   int lSrcHeight = cImageHeight;
 
-  // Allocate the input and output buffers
-  vsdk::SUMat lInput0(lSrcHeight, lSrcWidth, VSDK_CV_8UC1);
-  vsdk::SUMat lInput1(lSrcHeight, lSrcWidth, VSDK_CV_8UC1);
-  vsdk::SUMat lDoSaturate(1, 1, VSDK_CV_8UC1);
-  vsdk::SUMat lOutput0(lSrcHeight, lSrcWidth, VSDK_CV_8UC1);
+  char  inputImgName[255] = INPUT_ROOT "default.jpg";
+  char *ptrName = inputImgName;
 
-  // Create an ACF process
-  ADD_PI addProcess;
+  if (argc < 1) { printf("Error: Provide input file\n"); return 0;}
+  printf(" Taking %s as input file\n", argv[1]);
+  ptrName = argv[1];
 
-  // ACF Process initialization
-  printf("Initialize ACF process\n");
-  lRetVal |= addProcess.Initialize();
+  vsdk::UMat c = cv::imread(ptrName, CV_LOAD_IMAGE_COLOR).getUMat(cv::ACCESS_READ);
+  if(c.empty()) { printf("Cannot find the input image %s\n", ptrName); lRetVal = -1; return 0; }
 
-#if 1 //def GRAPH_CONNECT_DEBUG
-   // BY Port Info
-   ACF_Process_PortInfo* lpPortInfo = addProcess.RetPortInfo(ADD_GRAPH_INA); //AlPortIdentifier;
-   // class ACF_Process_PortInfo has a member
-   // //this information comes from the user at run-time on the host processor
-   // ACF_DataDesc mDataDesc;    //description of src/dst data buffer
-   // ACF_DataDesc mOffsetArray; //description of offset array in indirect case
+  printf("\nFRAME OUTPUT V234 FB:--\n");
 
-   // BY UMat
-   ACF_DataDesc lAcfDataDesc = TranslateVsdkUMatToAcfDataDesc(lInput0); //lUmat;
-   
-   // COMPARE
-   // lpPortInfo->mDataDesc and lAcfDataDesc
+  io::FrameOutputV234Fb output(lSrcWidth, lSrcHeight, io::IO_DATA_DEPTH_08, CHNL_CNT); //DCU_BPP_YCbCr422);
 
-#endif//def GRAPH_CONNECT_DEBUG  
-  // Connect buffers (vsdk::SUMat) to all ACF process ports
-  printf("Connect buffers to ACF process\n");
-  lRetVal |= addProcess.ConnectIO(ADD_GRAPH_INA, lInput0);
-  lRetVal |= addProcess.ConnectIO(ADD_GRAPH_INB, lInput1);
-  lRetVal |= addProcess.ConnectIO(ADD_GRAPH_INC, lDoSaturate);
-  lRetVal |= addProcess.ConnectIO(ADD_GRAPH_OUT, lOutput0);
+  vsdk::UMat w = vsdk::UMat(lSrcHeight, lSrcWidth, VSDK_CV_8UC3);
+  cv::Mat matOutput = w.getMat(cv::ACCESS_WRITE | OAL_USAGE_CACHED);
 
-  // Fill the Images with the random data
-  printf("Fill buffers\n");
-  {
-    uint32_t seed = 0x3d44A792;
-    vsdk::UMatHelper::FillRandom(lInput0, &seed);
-    vsdk::UMatHelper::FillRandom(lInput1, &seed);
-    vsdk::UMatHelper::FillZero(lDoSaturate);
-  }
-  printf("Initialization Done \n");
+  printf("O1 size w:%d, h:%d, t:%d, c:%d\n", matOutput.cols, matOutput.rows, matOutput.type(), matOutput.channels());
 
-  // Perform Computation on APEX core
-  printf("Start processing.\n");
-  lRetVal |= addProcess.Start();
-  lRetVal |= addProcess.Wait();
-  printf("Processing done.\n");
+  cv::Mat matResult = c.getMat(cv::ACCESS_READ  | OAL_USAGE_CACHED);
 
-  /// LLL DISPLAY ---(
-  io::FrameOutputV234Fb output(2048, 1024, io::IO_DATA_DEPTH_08, CHNL_CNT);
-  vsdk::UMat output_umat = vsdk::UMat(2048, 1024, VSDK_CV_8UC3);
+  // To display, make the resolution as to the FrameOutputV234Fb
+  cv::Size umSize(lSrcWidth, lSrcHeight);
+  cv::resize(matResult, matOutput, umSize);
+
+  printf("R size w:%d, h:%d, t:%d, c:%d\n", matResult.cols, matResult.rows, matResult.type(), matResult.channels());
+  printf("O size w:%d, h:%d, t:%d, c:%d\n", matOutput.cols, matOutput.rows, matOutput.type(), matOutput.channels());
+  printf("W size w:%d, h:%d, t:%d, c:%d\n", w.cols, w.rows, w.type(), w.channels());
+
+  printf("\nSAVE Result now: result.jpg\n");
+  imwrite("/home/nxp/ws/result.jpg", matResult);
+
+  printf("\nSAVE output now: output.jpg \n");
+  imwrite("/home/nxp/ws/output.jpg", matOutput);
+
   // Put it on screen
-  output.PutFrame(lOutput0);
-  /// LLL DISPLAY ---)
+  printf("\nOUTPUT now:--\n");
+  output.PutFrame(w);// umInputImg); //err
 
-
-  if(lRetVal != 0)
-  {
+  if(lRetVal != 0) {
     printf("Program Ended with Error 0x%X [ERROR]\n", lRetVal);
   }
-  else
-  {
+  else {
     printf("Program Ended [SUCCESS]\n");
   }
 
